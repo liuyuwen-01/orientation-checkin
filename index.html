@@ -189,12 +189,12 @@
                     <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
                         <i class="fa-solid fa-hand-pointer text-amber-500"></i> 尚未報到新生卡片 (向上滑動至上方區域完成報到)
                     </h3>
-                    <span class="text-xs text-slate-400 font-medium">提示：可一次預覽全班 24 位學生</span>
+                    <span class="text-xs text-slate-400 font-medium">提示：可直接預覽全班新生</span>
                 </div>
 
                 <!-- Card Holder Bar -->
                 <div class="bg-rose-100/70 border border-rose-200/80 rounded-3xl p-2.5 sm:p-3 shadow-inner overflow-x-auto custom-scrollbar">
-                    <div id="pending-cards-grid" class="grid grid-cols-12 md:grid-cols-[repeat(24,minmax(0,1fr))] gap-1 sm:gap-1.5 min-h-[100px] items-start min-w-[700px] md:min-w-0">
+                    <div id="pending-cards-grid" class="flex flex-wrap items-start justify-start gap-2 min-h-[100px] w-full p-1">
                         <!-- Dynamic Compact Slender Vertical Yellow Cards to Drag -->
                     </div>
                 </div>
@@ -496,15 +496,21 @@
             onSnapshot(studentsCollectionRef, (snapshot) => {
                 const list = [];
                 snapshot.forEach((docSnap) => {
-                    list.push({ id: docSnap.id, ...docSnap.data() });
+                    const data = docSnap.data();
+                    if (data) {
+                        list.push({ id: docSnap.id, ...data });
+                    }
                 });
                 studentsData = list;
 
+                // Safe sorting with fault tolerance
                 studentsData.sort((a, b) => {
-                    if (a.className !== b.className) {
-                        return a.className.localeCompare(b.className);
+                    const classA = String(a.className || '');
+                    const classB = String(b.className || '');
+                    if (classA !== classB) {
+                        return classA.localeCompare(classB, 'zh-Hant');
                     }
-                    return (a.seatNumber || 0) - (b.seatNumber || 0);
+                    return (Number(a.seatNumber) || 0) - (Number(b.seatNumber) || 0);
                 });
 
                 if (studentsData.length === 0) {
@@ -520,17 +526,28 @@
         }
 
         window.renderUI = function() {
-            renderClassButtons();
-            renderEntranceCards();
-            renderTeacherDashboard();
-            renderTeacherClassSelect();
+            try {
+                renderClassButtons();
+                renderEntranceCards();
+                renderTeacherClassSelect();
+                renderTeacherDashboard();
+            } catch (err) {
+                console.error("Error rendering UI:", err);
+            }
         };
 
         function renderClassButtons() {
             const container = document.getElementById('class-buttons-container');
             if (!container) return;
 
-            const classes = ['1年1班', '1年2班', '1年3班', '1年4班', '1年5班', '1年6班', '1年7班', '1年8班'];
+            const defaultClasses = ['1年1班', '1年2班', '1年3班', '1年4班', '1年5班', '1年6班', '1年7班', '1年8班'];
+            const dataClasses = Array.from(new Set(studentsData.map(s => s.className).filter(Boolean)));
+            const classes = Array.from(new Set([...defaultClasses, ...dataClasses])).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+
+            if (!classes.includes(selectedClass) && classes.length > 0) {
+                selectedClass = classes[0];
+            }
+
             container.innerHTML = classes.map(cls => {
                 const countClass = studentsData.filter(s => s.className === cls);
                 const checkedCount = countClass.filter(s => s.checkedIn).length;
@@ -577,7 +594,10 @@
             let classStudents = studentsData.filter(s => s.className === selectedClass);
 
             if (currentSearchQuery) {
-                classStudents = classStudents.filter(s => s.name.toLowerCase().includes(currentSearchQuery) || String(s.seatNumber).includes(currentSearchQuery));
+                classStudents = classStudents.filter(s => 
+                    (s.name && s.name.toLowerCase().includes(currentSearchQuery)) || 
+                    String(s.seatNumber || '').includes(currentSearchQuery)
+                );
             }
 
             const pending = classStudents.filter(s => !s.checkedIn);
@@ -587,22 +607,22 @@
                 pendingContainer.innerHTML = `
                     <div class="col-span-full py-8 text-center text-slate-500 bg-white/70 rounded-2xl border border-dashed border-rose-300 w-full">
                         <i class="fa-solid fa-circle-check text-emerald-500 text-2xl mb-1"></i>
-                        <p class="font-bold text-xs sm:text-sm">${currentSearchQuery ? '無符合搜尋條件之尚未報到新生' : '太棒了！本班新生已全部完成報到！'}</p>
+                        <p class="font-bold text-xs sm:text-sm">${currentSearchQuery ? '無符合搜尋條件之尚未報到新生' : (classStudents.length === 0 ? '本班尚無新生資料（請至「名單管理」匯入）' : '太棒了！本班新生已全部完成報到！')}</p>
                     </div>
                 `;
             } else {
                 pendingContainer.innerHTML = pending.map(s => `
                     <div id="card-${s.id}" 
                          data-id="${s.id}" 
-                         data-name="${s.name}" 
-                         class="drag-card relative bg-[#fef08a] border-2 border-amber-300 hover:border-indigo-500 rounded-2xl sm:rounded-3xl p-1 pb-2.5 shadow-md hover:shadow-lg cursor-grab active:cursor-grabbing flex flex-col items-center justify-start gap-1 sm:gap-1.5 text-center select-none group transition-all h-auto self-start min-w-[32px]">
+                         data-name="${s.name || ''}" 
+                         class="drag-card relative bg-[#fef08a] border-2 border-amber-300 hover:border-indigo-500 rounded-2xl sm:rounded-3xl p-2 pb-3 shadow-md hover:shadow-lg cursor-grab active:cursor-grabbing flex flex-col items-center justify-start gap-1 text-center select-none group transition-all h-auto self-start min-w-[50px] max-w-[70px]">
                         
-                        <span class="text-xs sm:text-sm font-extrabold text-slate-800 pt-1 tracking-tight leading-none">
-                            ${s.seatNumber ? s.seatNumber : ''}
+                        <span class="text-xs sm:text-sm font-extrabold text-slate-800 pt-0.5 tracking-tight leading-none">
+                            ${s.seatNumber ? s.seatNumber + '號' : ''}
                         </span>
 
-                        <div class="text-xs sm:text-sm font-black text-slate-800 tracking-widest mt-0.5 [writing-mode:vertical-rl] flex items-center justify-center leading-tight">
-                            ${s.name}
+                        <div class="text-xs sm:text-sm font-black text-slate-800 tracking-widest mt-1 [writing-mode:vertical-rl] flex items-center justify-center leading-tight py-1">
+                            ${s.name || '未命名'}
                         </div>
                     </div>
                 `).join('');
@@ -617,15 +637,15 @@
                 checkedContainer.innerHTML = `<p class="text-xs text-sky-100/80 p-2 font-medium">（目前報到區尚無學生，請向上滑動姓名卡完成報到）</p>`;
             } else {
                 checkedContainer.innerHTML = checked.map(s => `
-                    <div class="bg-emerald-500 text-white border-2 border-emerald-300 rounded-2xl sm:rounded-3xl p-1 pb-2 shadow-md flex flex-col items-center justify-start gap-1 text-center select-none h-auto min-w-[36px] relative transition-transform hover:scale-105">
+                    <div class="bg-emerald-500 text-white border-2 border-emerald-300 rounded-2xl sm:rounded-3xl p-1.5 pb-2 shadow-md flex flex-col items-center justify-start gap-1 text-center select-none h-auto min-w-[50px] max-w-[70px] relative transition-transform hover:scale-105">
                         <div class="flex items-center justify-between w-full text-[10px] font-bold px-1 text-emerald-100">
-                            <span>${s.seatNumber ? s.seatNumber : ''}</span>
+                            <span>${s.seatNumber ? s.seatNumber + '號' : ''}</span>
                             <button onclick="undoCheckIn('${s.id}')" title="取消報到" class="text-emerald-200 hover:text-white transition-colors">
                                 <i class="fa-solid fa-xmark text-[10px]"></i>
                             </button>
                         </div>
-                        <div class="text-xs sm:text-sm font-black tracking-widest mt-0.5 [writing-mode:vertical-rl] flex items-center justify-center leading-tight">
-                            ${s.name}
+                        <div class="text-xs sm:text-sm font-black tracking-widest mt-0.5 [writing-mode:vertical-rl] flex items-center justify-center leading-tight py-1">
+                            ${s.name || '未命名'}
                         </div>
                         <div class="text-[9px] font-bold bg-emerald-600 text-emerald-100 px-1 py-0.5 rounded-full flex items-center gap-0.5 mb-0.5 mt-[2px]">
                             <i class="fa-solid fa-check text-[7px]"></i>
@@ -749,8 +769,12 @@
         function renderTeacherClassSelect() {
             const select = document.getElementById('teacher-class-select');
             if (!select) return;
-            const classes = ['1年1班', '1年2班', '1年3班', '1年4班', '1年5班', '1年6班', '1年7班', '1年8班'];
-            select.innerHTML = classes.map(c => `<option value="${c}">${c}</option>`).join('');
+            const currentVal = select.value;
+            const defaultClasses = ['1年1班', '1年2班', '1年3班', '1年4班', '1年5班', '1年6班', '1年7班', '1年8班'];
+            const dataClasses = Array.from(new Set(studentsData.map(s => s.className).filter(Boolean)));
+            const classes = Array.from(new Set([...defaultClasses, ...dataClasses])).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+
+            select.innerHTML = classes.map(c => `<option value="${c}" ${c === currentVal ? 'selected' : ''}>${c}</option>`).join('');
         }
 
         window.renderTeacherDashboard = function() {
@@ -949,7 +973,8 @@
         };
 
         window.handleBatchImport = async function() {
-            const targetClass = document.getElementById('batch-class-select').value;
+            const targetClassSelect = document.getElementById('batch-class-select');
+            let targetClass = targetClassSelect ? targetClassSelect.value : '1年1班';
             const rawText = document.getElementById('batch-input-text').value.trim();
             const clearExisting = document.getElementById('batch-clear-checkbox').checked;
 
@@ -968,16 +993,29 @@
             let autoSeatCounter = 1;
 
             for (const line of lines) {
-                const match = line.match(/^(\d+)[\s,，.、\t]+(.+)$/);
-                if (match) {
-                    const seat = parseInt(match[1], 10);
-                    const name = match[2].trim();
+                let cleaned = line.trim();
+
+                // 檢查是否含有班級開頭 (例如: "1年1班 01 陳小明" 或 "一年一班 張美美")
+                const classMatch = cleaned.match(/^(1年[1-8]班|一年[一二三四五六七八]班|\d{3})\s*(.+)$/);
+                let studentClass = targetClass;
+                if (classMatch) {
+                    studentClass = classMatch[1];
+                    cleaned = classMatch[2].trim();
+                }
+
+                // 檢查座號與姓名 (例如: "01 陳小明", "01,陳小明", "1\t陳小明")
+                const seatNameMatch = cleaned.match(/^(\d+)[\s,，.、\t]+(.+)$/);
+                if (seatNameMatch) {
+                    const seat = parseInt(seatNameMatch[1], 10);
+                    const name = seatNameMatch[2].trim();
                     if (name) {
-                        parsedStudents.push({ seat, name });
+                        parsedStudents.push({ className: studentClass, seat, name });
                         autoSeatCounter = Math.max(autoSeatCounter, seat + 1);
                     }
                 } else {
-                    parsedStudents.push({ seat: autoSeatCounter++, name: line });
+                    if (cleaned) {
+                        parsedStudents.push({ className: studentClass, seat: autoSeatCounter++, name: cleaned });
+                    }
                 }
             }
 
@@ -987,23 +1025,26 @@
             }
 
             try {
-                showToast(`正在匯入 ${parsedStudents.length} 筆資料至 ${targetClass}...`, "info");
+                showToast(`正在匯入 ${parsedStudents.length} 筆資料...`, "info");
                 const batch = writeBatch(db);
 
                 if (clearExisting) {
-                    const existingInClass = studentsData.filter(s => s.className === targetClass);
-                    existingInClass.forEach(s => {
-                        batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.id));
+                    const classesToClear = Array.from(new Set(parsedStudents.map(s => s.className)));
+                    classesToClear.forEach(cls => {
+                        const existingInClass = studentsData.filter(s => s.className === cls);
+                        existingInClass.forEach(s => {
+                            batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.id));
+                        });
                     });
                 }
 
-                parsedStudents.forEach(s => {
-                    const docId = `student_${targetClass}_${s.seat}`;
+                parsedStudents.forEach((s, idx) => {
+                    const docId = `student_${s.className}_${s.seat}_${Date.now()}_${idx}`;
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', docId);
 
                     batch.set(docRef, {
                         name: s.name,
-                        className: targetClass,
+                        className: s.className,
                         seatNumber: s.seat,
                         checkedIn: false,
                         checkInTime: null
@@ -1013,7 +1054,7 @@
                 await batch.commit();
 
                 document.getElementById('batch-input-text').value = '';
-                showToast(`🎉 成功批次匯入 ${parsedStudents.length} 位學生至 ${targetClass}！`, "success");
+                showToast(`🎉 成功批次匯入 ${parsedStudents.length} 位學生！`, "success");
 
             } catch (err) {
                 console.error("Batch import error:", err);
