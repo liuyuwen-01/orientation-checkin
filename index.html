@@ -430,17 +430,17 @@
         // Global state and configurations
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'elementary-welcome-sign-in';
         
+         
         // 填入您提供的 Firebase 專案設定檔
-       const firebaseConfig = {
-  apiKey: "AIzaSyBDACnjAs2EPCyLIt39puoKMsspaxJXmdY",
-  authDomain: "elementary-checkin.firebaseapp.com",
-  databaseURL: "https://elementary-checkin-default-rtdb.firebaseio.com",
-  projectId: "elementary-checkin",
-  storageBucket: "elementary-checkin.firebasestorage.app",
-  messagingSenderId: "9610728255",
-  appId: "1:9610728255:web:0c71b1fccf13a95b1f798a"
-};
-
+        const userFirebaseConfig = {
+            apiKey: "AIzaSyBDACnjAs2EPCyLiT39puoKMsspaxJXmdY",
+            authDomain: "elementary-checkin.firebaseapp.com",
+            databaseURL: "https://elementary-checkin-default-rtdb.firebaseio.com",
+            projectId: "elementary-checkin",
+            storageBucket: "elementary-checkin.firebasestorage.app",
+            messagingSenderId: "9610728255",
+            appId: "1:9610728255:web:0c71b1fccf13a95b1f798a"
+        };
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
 
         const app = initializeApp(firebaseConfig);
