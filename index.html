@@ -90,7 +90,6 @@
 </head>
 <body class="bg-gradient-to-br from-amber-50 via-sky-50 to-emerald-50 min-h-screen text-slate-800 font-sans flex flex-col justify-between overflow-x-hidden selection:bg-amber-200">
 
-    <!-- Navigation Header -->
     <header class="bg-white/90 backdrop-blur-md border-b border-amber-100 shadow-sm sticky top-0 z-40">
         <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center space-x-3">
@@ -122,10 +121,9 @@
 
     <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
 
-        <!-- Notification Toast -->
+        <!-- Notification Toast Container -->
         <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-        <!-- ================= VIEW 1: ENTRANCE INTERACTIVE CHECK-IN ================= -->
         <section id="view-entrance" class="space-y-4">
 
             <!-- Class Selector & Controls Bar -->
@@ -163,7 +161,6 @@
 
             <!-- Target Drop Zone -->
             <div id="drop-zone" class="relative overflow-hidden bg-gradient-to-b from-sky-400 via-sky-300 to-indigo-200 border-4 border-dashed border-sky-300 rounded-3xl p-4 sm:p-5 text-center text-white shadow-inner transition-all duration-300 min-h-[250px] flex flex-col items-center justify-start group">
-                <!-- Floating background decor -->
                 <div class="absolute -top-6 -left-6 w-32 h-32 bg-white/20 rounded-full blur-xl pointer-events-none"></div>
                 <div class="absolute top-4 right-8 text-yellow-200 text-3xl opacity-80 animate-float pointer-events-none"><i class="fa-solid fa-star"></i></div>
                 <div class="absolute bottom-4 left-8 text-yellow-200 text-3xl opacity-80 animate-bounceSoft pointer-events-none"><i class="fa-solid fa-balloon"></i></div>
@@ -195,16 +192,15 @@
                     <span class="text-xs text-slate-400 font-medium">提示：可一次預覽全班 24 位學生</span>
                 </div>
 
-                <!-- Peach/Pink Card Holder Bar -->
+                <!-- Card Holder Bar -->
                 <div class="bg-rose-100/70 border border-rose-200/80 rounded-3xl p-2.5 sm:p-3 shadow-inner overflow-x-auto custom-scrollbar">
                     <div id="pending-cards-grid" class="grid grid-cols-12 md:grid-cols-[repeat(24,minmax(0,1fr))] gap-1 sm:gap-1.5 min-h-[100px] items-start min-w-[700px] md:min-w-0">
-                        <!-- Dynamic Compact Slender Vertical Yellow Pill Cards to Drag -->
+                        <!-- Dynamic Compact Slender Vertical Yellow Cards to Drag -->
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- ================= VIEW 2: TEACHER LIVE DASHBOARD ================= -->
         <section id="view-teacher" class="hidden space-y-6">
 
             <!-- Dashboard Controls Header -->
@@ -291,7 +287,6 @@
             </div>
         </section>
 
-        <!-- ================= VIEW 3: ADMIN & DATA MANAGEMENT ================= -->
         <section id="view-admin" class="hidden space-y-6">
             <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-6">
                 <div>
@@ -409,7 +404,6 @@
         <p>115學年度 小學一年級新生迎新報到系統 &bull; 支援雙向實時同步與語音播報</p>
     </footer>
 
-    <!-- Firebase Imports & Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -417,11 +411,19 @@
 
         // Global state and configurations
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'elementary-welcome-sign-in';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "demo-key",
-            authDomain: "demo.firebaseapp.com",
-            projectId: "demo-project"
+        
+        // 填入您提供的 Firebase 專案設定檔
+        const userFirebaseConfig = {
+            apiKey: "AIzaSyBDACnjAs2EPCyLiT39puoKMsspaxJXmdY",
+            authDomain: "elementary-checkin.firebaseapp.com",
+            databaseURL: "https://elementary-checkin-default-rtdb.firebaseio.com",
+            projectId: "elementary-checkin",
+            storageBucket: "elementary-checkin.firebasestorage.app",
+            messagingSenderId: "9610728255",
+            appId: "1:9610728255:web:0c71b1fccf13a95b1f798a"
         };
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -437,7 +439,6 @@
         let audioEnabled = true;
         let currentSearchQuery = '';
 
-        // Audio synthesizer
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         function playHappyTone() {
@@ -472,7 +473,6 @@
             window.speechSynthesis.speak(msg);
         }
 
-        // Initialize Auth
         async function initAuth() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -490,7 +490,6 @@
             }
         }
 
-        // Setup Firestore listener
         function setupRealtimeListener() {
             if (!currentUser) return;
 
@@ -501,7 +500,6 @@
                 });
                 studentsData = list;
 
-                // Sort by class and seat number
                 studentsData.sort((a, b) => {
                     if (a.className !== b.className) {
                         return a.className.localeCompare(b.className);
@@ -521,7 +519,6 @@
             });
         }
 
-        // UI Render Master Function
         window.renderUI = function() {
             renderClassButtons();
             renderEntranceCards();
@@ -529,7 +526,6 @@
             renderTeacherClassSelect();
         };
 
-        // Render Class Tabs (1年1班 ~ 1年8班)
         function renderClassButtons() {
             const container = document.getElementById('class-buttons-container');
             if (!container) return;
@@ -567,14 +563,12 @@
             renderUI();
         };
 
-        // Filter search input
         window.filterEntranceStudents = function() {
             const searchInput = document.getElementById('entrance-search');
             currentSearchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
             renderEntranceCards();
         };
 
-        // Render Cards in Entrance Mode
         function renderEntranceCards() {
             const pendingContainer = document.getElementById('pending-cards-grid');
             const checkedContainer = document.getElementById('drop-zone-cards');
@@ -589,7 +583,6 @@
             const pending = classStudents.filter(s => !s.checkedIn);
             const checked = classStudents.filter(s => s.checkedIn);
 
-            // Render Pending Cards (Tight gap between seat number & name)
             if (pending.length === 0) {
                 pendingContainer.innerHTML = `
                     <div class="col-span-full py-8 text-center text-slate-500 bg-white/70 rounded-2xl border border-dashed border-rose-300 w-full">
@@ -604,12 +597,10 @@
                          data-name="${s.name}" 
                          class="drag-card relative bg-[#fef08a] border-2 border-amber-300 hover:border-indigo-500 rounded-2xl sm:rounded-3xl p-1 pb-2.5 shadow-md hover:shadow-lg cursor-grab active:cursor-grabbing flex flex-col items-center justify-start gap-1 sm:gap-1.5 text-center select-none group transition-all h-auto self-start min-w-[32px]">
                         
-                        <!-- Seat Number Top -->
                         <span class="text-xs sm:text-sm font-extrabold text-slate-800 pt-1 tracking-tight leading-none">
                             ${s.seatNumber ? s.seatNumber : ''}
                         </span>
 
-                        <!-- Student Vertical Name -->
                         <div class="text-xs sm:text-sm font-black text-slate-800 tracking-widest mt-0.5 [writing-mode:vertical-rl] flex items-center justify-center leading-tight">
                             ${s.name}
                         </div>
@@ -622,7 +613,6 @@
                 });
             }
 
-            // Render Checked Cards inside Drop Zone
             if (checked.length === 0) {
                 checkedContainer.innerHTML = `<p class="text-xs text-sky-100/80 p-2 font-medium">（目前報到區尚無學生，請向上滑動姓名卡完成報到）</p>`;
             } else {
@@ -710,7 +700,6 @@
             cardEl.addEventListener('touchstart', onPointerDown, { passive: true });
         }
 
-        // Perform Check In
         async function performCheckIn(student) {
             try {
                 const nowStr = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -757,7 +746,6 @@
             }
         }
 
-        // Teacher Dashboard View
         function renderTeacherClassSelect() {
             const select = document.getElementById('teacher-class-select');
             if (!select) return;
@@ -822,7 +810,6 @@
             }
         };
 
-        // Navigation Switcher
         window.switchView = function(viewName) {
             document.getElementById('view-entrance').classList.add('hidden');
             document.getElementById('view-teacher').classList.add('hidden');
@@ -855,7 +842,6 @@
             }
         };
 
-        // ADMIN: Generate Sample Data for 8 Classes
         window.generateSampleData = async function(silent = false) {
             try {
                 showToast("正在一鍵生成 8個班級 測試名單...", "info");
@@ -896,7 +882,6 @@
             }
         };
 
-        // ADMIN: Reset check-in state
         window.resetCheckInStatus = async function() {
             try {
                 showToast("正在重置全校報到狀態...", "info");
@@ -918,7 +903,6 @@
             }
         };
 
-        // ADMIN: Clear all data
         window.clearAllData = async function() {
             try {
                 showToast("正在清空名單...", "info");
@@ -936,7 +920,6 @@
             }
         };
 
-        // ADMIN: Add single student
         window.handleAddStudent = async function(e) {
             e.preventDefault();
             const cls = document.getElementById('add-class-select').value;
@@ -965,7 +948,6 @@
             }
         };
 
-        // ADMIN: Batch Import Students Function
         window.handleBatchImport = async function() {
             const targetClass = document.getElementById('batch-class-select').value;
             const rawText = document.getElementById('batch-input-text').value.trim();
@@ -1039,7 +1021,6 @@
             }
         };
 
-        // Toast Helper
         function showToast(msg, type = 'info') {
             const container = document.getElementById('toast-container');
             if (!container) return;
