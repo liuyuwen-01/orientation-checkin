@@ -12,6 +12,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- SheetJS Excel File Reader -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -331,6 +333,22 @@
                 <!-- Add Single Student Form -->
                 <div class="border-t border-slate-100 pt-6 space-y-6">
                     <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-file-excel text-emerald-600"></i> 直接匯入 Excel 名單 (支援 115新生.xlsx)
+                    </h3>
+                    
+                    <!-- Excel Dropzone & Upload Block -->
+                    <div id="excel-drop-zone" class="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 hover:bg-emerald-50 rounded-2xl p-6 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group" onclick="document.getElementById('excel-file-input').click()">
+                        <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="onExcelFileSelect(event)">
+                        <div class="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-file-arrow-up"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-emerald-900">點擊此處選擇或將 <span class="underline underline-offset-2">115新生.xlsx</span> 拖曳至此</p>
+                            <p class="text-xs text-emerald-700/80 mt-1">支援 .xlsx, .xls, .csv 格式 &bull; 自動識別班級、座號與學生姓名</p>
+                        </div>
+                    </div>
+
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2 pt-2">
                         <i class="fa-solid fa-user-plus text-emerald-500"></i> 手動新增單筆新生
                     </h3>
                     <form id="add-student-form" onsubmit="handleAddStudent(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -972,6 +990,137 @@
             }
         };
 
+        window.onExcelFileSelect = function(event) {
+            const file = event.target.files && event.target.files[0];
+            if (file) {
+                handleExcelFileUpload(file);
+            }
+        };
+
+        function normalizeClassName(raw) {
+            if (!raw) return '1年1班';
+            let str = String(raw).trim();
+            if (/^10([1-8])$/.test(str)) {
+                return `1年${str.slice(-1)}班`;
+            }
+            if (/^1-([1-8])$/.test(str)) {
+                return `1年${str.slice(-1)}班`;
+            }
+            const zhNumMap = {'一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8'};
+            str = str.replace(/一年([一二三四五六七八])班/, (m, p1) => `1年${zhNumMap[p1]}班`);
+            if (!str.includes('班') && /^\d+$/.test(str)) {
+                return `1年${str}班`;
+            }
+            return str;
+        }
+
+        async function saveStudentsToFirestore(studentList) {
+            const batchSize = 400;
+            for (let i = 0; i < studentList.length; i += batchSize) {
+                const batch = writeBatch(db);
+                const chunk = studentList.slice(i, i + batchSize);
+                
+                chunk.forEach((s, idx) => {
+                    const docId = `student_${s.className}_${s.seatNumber}_${Date.now()}_${i + idx}`;
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', docId);
+                    batch.set(docRef, {
+                        name: s.name,
+                        className: s.className,
+                        seatNumber: s.seatNumber,
+                        checkedIn: false,
+                        checkInTime: null
+                    });
+                });
+                await batch.commit();
+            }
+        }
+
+        window.handleExcelFileUpload = async function(file) {
+            if (!file) return;
+            try {
+                showToast(`正在讀取 Excel 檔案 (${file.name})...`, "info");
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                
+                let allStudents = [];
+
+                workbook.SheetNames.forEach(sheetName => {
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+                    if (jsonData.length < 1) return;
+
+                    let headerIdx = -1;
+                    let colClass = -1, colSeat = -1, colName = -1;
+
+                    for (let i = 0; i < Math.min(jsonData.length, 10); i++) {
+                        const row = jsonData[i];
+                        row.forEach((cell, idx) => {
+                            const str = String(cell).trim();
+                            if (/班級|班別|Class/i.test(str)) colClass = idx;
+                            if (/座號|學號|號碼|Seat/i.test(str)) colSeat = idx;
+                            if (/姓名|學生姓名|名字|Name/i.test(str)) colName = idx;
+                        });
+                        if (colName !== -1) {
+                            headerIdx = i;
+                            break;
+                        }
+                    }
+
+                    let defaultClass = sheetName;
+                    const startRow = headerIdx !== -1 ? headerIdx + 1 : 0;
+                    let autoSeat = 1;
+
+                    for (let r = startRow; r < jsonData.length; r++) {
+                        const row = jsonData[r];
+                        if (!row || row.length === 0) continue;
+
+                        let nameVal = colName !== -1 ? String(row[colName] || '').trim() : '';
+                        let seatVal = colSeat !== -1 ? parseInt(String(row[colSeat]).replace(/\D/g, ''), 10) : NaN;
+                        let classVal = colClass !== -1 ? String(row[colClass] || '').trim() : defaultClass;
+
+                        if (!nameVal) {
+                            for (let c = 0; c < row.length; c++) {
+                                const cellStr = String(row[c] || '').trim();
+                                if (/^[\u4e00-\u9fa5]{2,4}$/.test(cellStr) && !/班級|座號|姓名|學號|一年/.test(cellStr)) {
+                                    nameVal = cellStr;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!nameVal) continue;
+
+                        classVal = normalizeClassName(classVal);
+                        if (isNaN(seatVal)) {
+                            seatVal = autoSeat++;
+                        } else {
+                            autoSeat = seatVal + 1;
+                        }
+
+                        allStudents.push({
+                            className: classVal,
+                            seatNumber: seatVal,
+                            name: nameVal
+                        });
+                    }
+                });
+
+                if (allStudents.length === 0) {
+                    showToast("未能解析出學生資料，請檢查 Excel 格式", "error");
+                    return;
+                }
+
+                showToast(`解析成功！正在匯入 ${allStudents.length} 筆學生資料...`, "info");
+                await saveStudentsToFirestore(allStudents);
+                showToast(`🎉 成功匯入 ${allStudents.length} 位新生名單（來自 ${file.name}）！`, "success");
+
+            } catch (err) {
+                console.error("Excel import error:", err);
+                showToast("Excel 讀取失敗，請重試", "error");
+            }
+        };
+
         window.handleBatchImport = async function() {
             const targetClassSelect = document.getElementById('batch-class-select');
             let targetClass = targetClassSelect ? targetClassSelect.value : '1年1班';
@@ -1087,6 +1236,25 @@
         // Initialize Application
         window.addEventListener('DOMContentLoaded', () => {
             initAuth();
+
+            // Setup Excel Dropzone Drag & Drop
+            const dropZone = document.getElementById('excel-drop-zone');
+            if (dropZone) {
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }, false);
+                });
+
+                dropZone.addEventListener('drop', e => {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+                    if (files && files.length > 0) {
+                        handleExcelFileUpload(files[0]);
+                    }
+                });
+            }
         });
     </script>
 </body>
