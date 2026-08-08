@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小學一年級新生迎新互動報到系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Fredoka & Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Noto Sans TC', 'Fredoka', 'sans-serif'],
+                        cute: ['Fredoka', 'Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#fffbe1',
+                            100: '#fff3c2',
+                            300: '#fde047',
+                            400: '#facc15',
+                            500: '#eab308',
+                            600: '#ca8a04',
+                        }
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-8px)' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { opacity: '0.8', transform: 'scale(1)' },
+                            '50%': { opacity: '1', transform: 'scale(1.03)' },
+                        },
+                        bounceSoft: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-12px)' }
+                        }
+                    },
+                    animation: {
+                        float: 'float 3s ease-in-out infinite',
+                        pulseGlow: 'pulseGlow 2s ease-in-out infinite',
+                        bounceSoft: 'bounceSoft 1.5s ease-in-out infinite'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        .drag-card {
+            touch-action: none;
+            transition: transform 0.15s cubic-bezier(0.2, 0, 0.1, 1), box-shadow 0.15s ease;
+            will-change: transform;
+        }
+        .drag-card.dragging {
+            transition: none;
+            z-index: 50;
+            opacity: 0.92;
+            cursor: grabbing;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-amber-50 via-sky-50 to-emerald-50 min-h-screen text-slate-800 font-sans flex flex-col justify-between overflow-x-hidden selection:bg-amber-200">
+
+    <!-- Navigation Header -->
+    <header class="bg-white/90 backdrop-blur-md border-b border-amber-100 shadow-sm sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-orange-400 flex items-center justify-center text-white shadow-md shadow-amber-200 animate-bounceSoft">
+                    <i class="fa-solid font-bold fa-school text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-black text-slate-800 tracking-wide flex items-center gap-2">
+                        歡迎新同學！ <span class="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">115學年度</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 font-medium">小學一年級迎新活動 數位互動報到系統</p>
+                </div>
+            </div>
+
+            <!-- View Navigation Switcher -->
+            <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button id="nav-entrance-btn" onclick="switchView('entrance')" class="px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 bg-white text-amber-600 shadow-sm">
+                    <i class="fa-solid fa-person-shelter"></i> 門口報到頁面
+                </button>
+                <button id="nav-teacher-btn" onclick="switchView('teacher')" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:text-slate-900 transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-chalkboard-user"></i> 教室導師看板
+                </button>
+                <button id="nav-admin-btn" onclick="switchView('admin')" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:text-slate-900 transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-gear"></i> 名單管理
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+
+        <!-- Notification Toast -->
+        <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+        <!-- ================= VIEW 1: ENTRANCE INTERACTIVE CHECK-IN ================= -->
+        <section id="view-entrance" class="space-y-4">
+
+            <!-- Class Selector & Controls Bar -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <h2 class="text-base font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-shapes text-amber-500"></i> 請先選擇班級：
+                    </h2>
+                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <span class="inline-block w-3 h-3 rounded-full bg-emerald-400"></span> 已報到
+                        <span class="inline-block w-3 h-3 rounded-full bg-amber-400 ml-2"></span> 待報到 (請上滑)
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 sm:grid-cols-8 gap-2" id="class-buttons-container">
+                    <!-- Dynamic Class Buttons (1年1班 ~ 1年8班) -->
+                </div>
+
+                <!-- Search and Controls -->
+                <div class="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div class="relative flex-1 min-w-[200px]">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="entrance-search" oninput="filterEntranceStudents()" placeholder="搜尋新生姓名..." class="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-xs font-bold text-slate-600 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200">
+                            <span id="current-class-display" class="text-amber-700">1年1班</span> 進度：
+                            <span id="class-progress-text" class="text-amber-600 font-extrabold">0 / 0</span>
+                        </div>
+                        <button onclick="toggleAudioFeedback()" id="audio-toggle-btn" class="p-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5" title="切換報到語音/音效">
+                            <i class="fa-solid fa-volume-high text-emerald-600" id="audio-icon"></i> 語音: 開
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Target Drop Zone -->
+            <div id="drop-zone" class="relative overflow-hidden bg-gradient-to-b from-sky-400 via-sky-300 to-indigo-200 border-4 border-dashed border-sky-300 rounded-3xl p-4 sm:p-5 text-center text-white shadow-inner transition-all duration-300 min-h-[250px] flex flex-col items-center justify-start group">
+                <!-- Floating background decor -->
+                <div class="absolute -top-6 -left-6 w-32 h-32 bg-white/20 rounded-full blur-xl pointer-events-none"></div>
+                <div class="absolute top-4 right-8 text-yellow-200 text-3xl opacity-80 animate-float pointer-events-none"><i class="fa-solid fa-star"></i></div>
+                <div class="absolute bottom-4 left-8 text-yellow-200 text-3xl opacity-80 animate-bounceSoft pointer-events-none"><i class="fa-solid fa-balloon"></i></div>
+
+                <div class="relative z-10 pointer-events-none flex flex-col items-center">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 bg-white/25 backdrop-blur-md rounded-full flex items-center justify-center text-white text-xl mb-1 shadow-lg group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-cloud-arrow-up animate-pulse"></i>
+                    </div>
+                    <h3 class="text-xl sm:text-2xl md:text-3xl font-black text-white drop-shadow-md tracking-wider">
+                        【 迎新報到區 】
+                    </h3>
+                    <p class="text-amber-100 text-xs sm:text-sm font-black mt-1 bg-sky-800/30 px-3 py-0.5 rounded-full backdrop-blur-sm border border-white/20">
+                        👇 把下方你的「直式姓名卡」直接向上滑進這裡即可完成報到！
+                    </p>
+                </div>
+
+                <!-- Checked-in Student Cards Display Area -->
+                <div id="drop-zone-cards" class="w-full mt-3 flex flex-wrap items-center justify-center gap-2 max-h-[220px] overflow-y-auto custom-scrollbar relative z-20 pointer-events-auto p-1">
+                    <!-- Dynamic Checked-In Slender Vertical Cards inside Drop Zone -->
+                </div>
+            </div>
+
+            <!-- Unchecked Student Cards Area -->
+            <div class="space-y-2">
+                <div class="flex items-center justify-between px-1">
+                    <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-hand-pointer text-amber-500"></i> 尚未報到新生卡片 (向上滑動至上方區域完成報到)
+                    </h3>
+                    <span class="text-xs text-slate-400 font-medium">提示：可一次預覽全班 24 位學生</span>
+                </div>
+
+                <!-- Peach/Pink Card Holder Bar -->
+                <div class="bg-rose-100/70 border border-rose-200/80 rounded-3xl p-2.5 sm:p-3 shadow-inner overflow-x-auto custom-scrollbar">
+                    <div id="pending-cards-grid" class="grid grid-cols-12 md:grid-cols-[repeat(24,minmax(0,1fr))] gap-1 sm:gap-1.5 min-h-[100px] items-start min-w-[700px] md:min-w-0">
+                        <!-- Dynamic Compact Slender Vertical Yellow Pill Cards to Drag -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= VIEW 2: TEACHER LIVE DASHBOARD ================= -->
+        <section id="view-teacher" class="hidden space-y-6">
+
+            <!-- Dashboard Controls Header -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-black text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-display text-sky-500"></i> 班級導師即時報到看板
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">即時連線觀察迎新大門報到動態，免手動重新整理</p>
+                </div>
+
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <label class="text-sm font-bold text-slate-700 whitespace-nowrap">切換教室班級：</label>
+                    <select id="teacher-class-select" onchange="renderTeacherDashboard()" class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400">
+                        <!-- Options generated dynamically -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- Stats Overview Banner -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl p-5 text-white shadow-md flex items-center justify-between">
+                    <div>
+                        <p class="text-sky-100 text-xs font-bold uppercase tracking-wider">班級總人數</p>
+                        <h3 class="text-3xl font-black mt-1" id="dash-total-count">0 <span class="text-sm font-normal">人</span></h3>
+                    </div>
+                    <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-md flex items-center justify-between">
+                    <div>
+                        <p class="text-emerald-100 text-xs font-bold uppercase tracking-wider">已抵達教室/已報到</p>
+                        <h3 class="text-3xl font-black mt-1" id="dash-checked-count">0 <span class="text-sm font-normal">人</span></h3>
+                    </div>
+                    <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">
+                        <i class="fa-solid fa-user-check"></i>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-md flex items-center justify-between">
+                    <div>
+                        <p class="text-amber-100 text-xs font-bold uppercase tracking-wider">尚未報到人數</p>
+                        <h3 class="text-3xl font-black mt-1" id="dash-pending-count">0 <span class="text-sm font-normal">人</span></h3>
+                    </div>
+                    <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">
+                        <i class="fa-solid fa-user-clock"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Detailed Rosters -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                <!-- Arrived List -->
+                <div class="bg-white rounded-2xl border border-emerald-100 p-5 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-emerald-800 text-base flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-emerald-500"></span> 已報到名單
+                        </h3>
+                        <span id="dash-arrived-ratio" class="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-bold">0%</span>
+                    </div>
+
+                    <div id="dash-arrived-list" class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto custom-scrollbar p-1">
+                        <!-- Arrived cards inserted dynamically -->
+                    </div>
+                </div>
+
+                <!-- Unarrived List -->
+                <div class="bg-white rounded-2xl border border-amber-100 p-5 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-amber-800 text-base flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-amber-500"></span> 尚未報到名單
+                        </h3>
+                        <span class="text-xs text-slate-400">請導師聯繫確認</span>
+                    </div>
+
+                    <div id="dash-pending-list" class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto custom-scrollbar p-1">
+                        <!-- Pending cards inserted dynamically -->
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ================= VIEW 3: ADMIN & DATA MANAGEMENT ================= -->
+        <section id="view-admin" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-amber-500"></i> 新生名單數據管理
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">在此可以生成示範用的8個班級新生名單，或重置所有學生的報到狀態。</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-5 rounded-2xl bg-amber-50 border border-amber-200 space-y-3">
+                        <h3 class="font-bold text-amber-900 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles text-amber-600"></i> 一鍵生成測試名單
+                        </h3>
+                        <p class="text-xs text-amber-700">自動生成 1年1班 至 1年8班，共約 160 名學生的真實示範名單。</p>
+                        <button onclick="generateSampleData()" class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-sm rounded-xl transition-all shadow-sm">
+                            <i class="fa-solid fa-users-gear"></i> 生成 8個班級測試名單
+                        </button>
+                    </div>
+
+                    <div class="p-5 rounded-2xl bg-sky-50 border border-sky-200 space-y-3">
+                        <h3 class="font-bold text-sky-900 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-rotate-right text-sky-600"></i> 重置報到狀態
+                        </h3>
+                        <p class="text-xs text-sky-700">保持學生名單，但將所有人的報到狀態回復為「尚未報到」。</p>
+                        <button onclick="resetCheckInStatus()" class="w-full py-2.5 px-4 bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold text-sm rounded-xl transition-all shadow-sm">
+                            <i class="fa-solid fa-arrow-rotate-left"></i> 重置全校報到狀態
+                        </button>
+                    </div>
+
+                    <div class="p-5 rounded-2xl bg-rose-50 border border-rose-200 space-y-3">
+                        <h3 class="font-bold text-rose-900 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-trash-can text-rose-600"></i> 清空所有名單
+                        </h3>
+                        <p class="text-xs text-rose-700">清空雲端資料庫中的所有學生紀錄。</p>
+                        <button onclick="clearAllData()" class="w-full py-2.5 px-4 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold text-sm rounded-xl transition-all shadow-sm">
+                            <i class="fa-solid fa-xmark"></i> 清空雲端名單
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Add Single Student Form -->
+                <div class="border-t border-slate-100 pt-6 space-y-6">
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-user-plus text-emerald-500"></i> 手動新增單筆新生
+                    </h3>
+                    <form id="add-student-form" onsubmit="handleAddStudent(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                        <select id="add-class-select" required class="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium">
+                            <option value="1年1班">1年1班</option>
+                            <option value="1年2班">1年2班</option>
+                            <option value="1年3班">1年3班</option>
+                            <option value="1年4班">1年4班</option>
+                            <option value="1年5班">1年5班</option>
+                            <option value="1年6班">1年6班</option>
+                            <option value="1年7班">1年7班</option>
+                            <option value="1年8班">1年8班</option>
+                        </select>
+                        <input type="number" id="add-seat-input" placeholder="座號 (例如: 01)" required min="1" max="50" class="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium">
+                        <input type="text" id="add-name-input" placeholder="新生姓名 (例如: 陳小明)" required class="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium">
+                        <button type="submit" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm rounded-xl transition-all shadow-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-check"></i> 新增學生
+                        </button>
+                    </form>
+
+                    <!-- Batch Import Students Block -->
+                    <div class="bg-amber-50/60 rounded-2xl p-5 border border-amber-200/70 space-y-4">
+                        <div class="flex items-center justify-between flex-wrap gap-2">
+                            <h3 class="font-bold text-amber-900 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-file-import text-amber-600"></i> 批次匯入新生名單 (文字快速貼上)
+                            </h3>
+                            <span class="text-xs text-amber-700/80 font-medium">支援 Excel / Word 直接複製貼上</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs font-bold text-slate-700 whitespace-nowrap">目標班級：</label>
+                                <select id="batch-class-select" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-amber-400">
+                                    <option value="1年1班">1年1班</option>
+                                    <option value="1年2班">1年2班</option>
+                                    <option value="1年3班">1年3班</option>
+                                    <option value="1年4班">1年4班</option>
+                                    <option value="1年5班">1年5班</option>
+                                    <option value="1年6班">1年6班</option>
+                                    <option value="1年7班">1年7班</option>
+                                    <option value="1年8班">1年8班</option>
+                                </select>
+                            </div>
+
+                            <div class="flex items-center gap-2 md:col-span-2">
+                                <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                                    <input type="checkbox" id="batch-clear-checkbox" class="w-4 h-4 text-amber-500 rounded border-slate-300 focus:ring-amber-400">
+                                    <span>匯入前先清空該班舊資料</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <textarea id="batch-input-text" rows="5" placeholder="請在此貼上學生座號與姓名，每行一位學生&#10;範例1 (有座號)：&#10;01 陳小明&#10;02 林小華&#10;03,王大同&#10;&#10;範例2 (僅姓名，自動編號)：&#10;張美美&#10;許家豪" class="w-full p-3 rounded-xl bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all shadow-inner"></textarea>
+                        </div>
+
+                        <div class="flex justify-end gap-2">
+                            <button onclick="handleBatchImport()" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-sm rounded-xl transition-all shadow-sm flex items-center gap-2">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> 開始批次匯入
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-100 py-4 text-center text-xs text-slate-400">
+        <p>115學年度 小學一年級新生迎新報到系統 &bull; 支援雙向實時同步與語音播報</p>
+    </footer>
+
+    <!-- Firebase Imports & Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global state and configurations
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'elementary-welcome-sign-in';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "demo-key",
+            authDomain: "demo.firebaseapp.com",
+            projectId: "demo-project"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Firestore reference
+        const studentsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+
+        // Local state
+        let currentUser = null;
+        let studentsData = [];
+        let selectedClass = '1年1班';
+        let audioEnabled = true;
+        let currentSearchQuery = '';
+
+        // Audio synthesizer
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playHappyTone() {
+            if (!audioEnabled) return;
+            try {
+                const now = audioCtx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    gain.gain.setValueAtTime(0.2, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.3);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.3);
+                });
+            } catch (e) {
+                console.log("Audio playback error:", e);
+            }
+        }
+
+        function speakGreeting(name) {
+            if (!audioEnabled || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const msg = new SpeechSynthesisUtterance(`歡迎 ${name} 同學！`);
+            msg.lang = 'zh-TW';
+            msg.rate = 1.0;
+            msg.pitch = 1.2;
+            window.speechSynthesis.speak(msg);
+        }
+
+        // Initialize Auth
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const userCred = await signInWithCustomToken(auth, __initial_auth_token);
+                    currentUser = userCred.user;
+                } else {
+                    const userCred = await signInAnonymously(auth);
+                    currentUser = userCred.user;
+                }
+                console.log("Auth initialized successfully. User:", currentUser.uid);
+                setupRealtimeListener();
+            } catch (error) {
+                console.error("Auth error:", error);
+                showToast("雲端認證失敗，請重新整理頁面", "error");
+            }
+        }
+
+        // Setup Firestore listener
+        function setupRealtimeListener() {
+            if (!currentUser) return;
+
+            onSnapshot(studentsCollectionRef, (snapshot) => {
+                const list = [];
+                snapshot.forEach((docSnap) => {
+                    list.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                studentsData = list;
+
+                // Sort by class and seat number
+                studentsData.sort((a, b) => {
+                    if (a.className !== b.className) {
+                        return a.className.localeCompare(b.className);
+                    }
+                    return (a.seatNumber || 0) - (b.seatNumber || 0);
+                });
+
+                if (studentsData.length === 0) {
+                    console.log("No student data found. Auto-generating sample data...");
+                    generateSampleData(true);
+                } else {
+                    renderUI();
+                }
+            }, (error) => {
+                console.error("Firestore snapshot error:", error);
+                showToast("實時同步斷線，請檢查網路", "error");
+            });
+        }
+
+        // UI Render Master Function
+        window.renderUI = function() {
+            renderClassButtons();
+            renderEntranceCards();
+            renderTeacherDashboard();
+            renderTeacherClassSelect();
+        };
+
+        // Render Class Tabs (1年1班 ~ 1年8班)
+        function renderClassButtons() {
+            const container = document.getElementById('class-buttons-container');
+            if (!container) return;
+
+            const classes = ['1年1班', '1年2班', '1年3班', '1年4班', '1年5班', '1年6班', '1年7班', '1年8班'];
+            container.innerHTML = classes.map(cls => {
+                const countClass = studentsData.filter(s => s.className === cls);
+                const checkedCount = countClass.filter(s => s.checkedIn).length;
+                const isSelected = cls === selectedClass;
+
+                return `
+                    <button onclick="selectClass('${cls}')" class="py-2 px-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
+                        isSelected 
+                            ? 'bg-amber-400 border-amber-500 text-slate-900 font-black shadow-md scale-[1.02]' 
+                            : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 font-bold'
+                    }">
+                        <span class="text-xs md:text-sm whitespace-nowrap">${cls}</span>
+                        <span class="text-[10px] opacity-80">${checkedCount}/${countClass.length}人</span>
+                    </button>
+                `;
+            }).join('');
+
+            const currentClassEl = document.getElementById('current-class-display');
+            if (currentClassEl) currentClassEl.textContent = selectedClass;
+
+            const currentList = studentsData.filter(s => s.className === selectedClass);
+            const currentChecked = currentList.filter(s => s.checkedIn).length;
+
+            const progressTextEl = document.getElementById('class-progress-text');
+            if (progressTextEl) progressTextEl.textContent = `${currentChecked} / ${currentList.length}`;
+        }
+
+        window.selectClass = function(clsName) {
+            selectedClass = clsName;
+            renderUI();
+        };
+
+        // Filter search input
+        window.filterEntranceStudents = function() {
+            const searchInput = document.getElementById('entrance-search');
+            currentSearchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
+            renderEntranceCards();
+        };
+
+        // Render Cards in Entrance Mode
+        function renderEntranceCards() {
+            const pendingContainer = document.getElementById('pending-cards-grid');
+            const checkedContainer = document.getElementById('drop-zone-cards');
+            if (!pendingContainer || !checkedContainer) return;
+
+            let classStudents = studentsData.filter(s => s.className === selectedClass);
+
+            if (currentSearchQuery) {
+                classStudents = classStudents.filter(s => s.name.toLowerCase().includes(currentSearchQuery) || String(s.seatNumber).includes(currentSearchQuery));
+            }
+
+            const pending = classStudents.filter(s => !s.checkedIn);
+            const checked = classStudents.filter(s => s.checkedIn);
+
+            // Render Pending Cards (Tight gap between seat number & name)
+            if (pending.length === 0) {
+                pendingContainer.innerHTML = `
+                    <div class="col-span-full py-8 text-center text-slate-500 bg-white/70 rounded-2xl border border-dashed border-rose-300 w-full">
+                        <i class="fa-solid fa-circle-check text-emerald-500 text-2xl mb-1"></i>
+                        <p class="font-bold text-xs sm:text-sm">${currentSearchQuery ? '無符合搜尋條件之尚未報到新生' : '太棒了！本班新生已全部完成報到！'}</p>
+                    </div>
+                `;
+            } else {
+                pendingContainer.innerHTML = pending.map(s => `
+                    <div id="card-${s.id}" 
+                         data-id="${s.id}" 
+                         data-name="${s.name}" 
+                         class="drag-card relative bg-[#fef08a] border-2 border-amber-300 hover:border-indigo-500 rounded-2xl sm:rounded-3xl p-1 pb-2.5 shadow-md hover:shadow-lg cursor-grab active:cursor-grabbing flex flex-col items-center justify-start gap-1 sm:gap-1.5 text-center select-none group transition-all h-auto self-start min-w-[32px]">
+                        
+                        <!-- Seat Number Top -->
+                        <span class="text-xs sm:text-sm font-extrabold text-slate-800 pt-1 tracking-tight leading-none">
+                            ${s.seatNumber ? s.seatNumber : ''}
+                        </span>
+
+                        <!-- Student Vertical Name -->
+                        <div class="text-xs sm:text-sm font-black text-slate-800 tracking-widest mt-0.5 [writing-mode:vertical-rl] flex items-center justify-center leading-tight">
+                            ${s.name}
+                        </div>
+                    </div>
+                `).join('');
+
+                pending.forEach(s => {
+                    const cardEl = document.getElementById(`card-${s.id}`);
+                    if (cardEl) setupDragGesture(cardEl, s);
+                });
+            }
+
+            // Render Checked Cards inside Drop Zone
+            if (checked.length === 0) {
+                checkedContainer.innerHTML = `<p class="text-xs text-sky-100/80 p-2 font-medium">（目前報到區尚無學生，請向上滑動姓名卡完成報到）</p>`;
+            } else {
+                checkedContainer.innerHTML = checked.map(s => `
+                    <div class="bg-emerald-500 text-white border-2 border-emerald-300 rounded-2xl sm:rounded-3xl p-1 pb-2 shadow-md flex flex-col items-center justify-start gap-1 text-center select-none h-auto min-w-[36px] relative transition-transform hover:scale-105">
+                        <div class="flex items-center justify-between w-full text-[10px] font-bold px-1 text-emerald-100">
+                            <span>${s.seatNumber ? s.seatNumber : ''}</span>
+                            <button onclick="undoCheckIn('${s.id}')" title="取消報到" class="text-emerald-200 hover:text-white transition-colors">
+                                <i class="fa-solid fa-xmark text-[10px]"></i>
+                            </button>
+                        </div>
+                        <div class="text-xs sm:text-sm font-black tracking-widest mt-0.5 [writing-mode:vertical-rl] flex items-center justify-center leading-tight">
+                            ${s.name}
+                        </div>
+                        <div class="text-[9px] font-bold bg-emerald-600 text-emerald-100 px-1 py-0.5 rounded-full flex items-center gap-0.5 mb-0.5 mt-[2px]">
+                            <i class="fa-solid fa-check text-[7px]"></i>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function setupDragGesture(cardEl, student) {
+            let startY = 0;
+            let isDragging = false;
+            const dropZone = document.getElementById('drop-zone');
+
+            function onPointerDown(e) {
+                isDragging = true;
+                startY = e.clientY || (e.touches && e.touches[0].clientY);
+                cardEl.classList.add('dragging');
+                document.addEventListener('pointermove', onPointerMove);
+                document.addEventListener('pointerup', onPointerUp);
+                document.addEventListener('touchmove', onPointerMove, { passive: false });
+                document.addEventListener('touchend', onPointerUp);
+            }
+
+            function onPointerMove(e) {
+                if (!isDragging) return;
+                const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                const deltaY = clientY - startY;
+
+                if (deltaY < 30) {
+                    cardEl.style.transform = `translateY(${deltaY}px) scale(1.05)`;
+                }
+
+                const dropRect = dropZone.getBoundingClientRect();
+                const cardRect = cardEl.getBoundingClientRect();
+
+                if (cardRect.top < dropRect.bottom) {
+                    dropZone.classList.add('ring-4', 'ring-yellow-300', 'scale-[1.01]');
+                } else {
+                    dropZone.classList.remove('ring-4', 'ring-yellow-300', 'scale-[1.01]');
+                }
+
+                if (e.cancelable && deltaY < 0) e.preventDefault();
+            }
+
+            async function onPointerUp(e) {
+                if (!isDragging) return;
+                isDragging = false;
+                cardEl.classList.remove('dragging');
+
+                dropZone.classList.remove('ring-4', 'ring-yellow-300', 'scale-[1.01]');
+
+                document.removeEventListener('pointermove', onPointerMove);
+                document.removeEventListener('pointerup', onPointerUp);
+                document.removeEventListener('touchmove', onPointerMove);
+                document.removeEventListener('touchend', onPointerUp);
+
+                const cardRect = cardEl.getBoundingClientRect();
+                const dropRect = dropZone.getBoundingClientRect();
+                const deltaY = (e.clientY || (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientY : startY)) - startY;
+
+                if (cardRect.top < dropRect.bottom || deltaY < -50) {
+                    cardEl.style.transform = 'translateY(-150px) scale(0.5)';
+                    cardEl.style.opacity = '0';
+                    await performCheckIn(student);
+                } else {
+                    cardEl.style.transform = 'translateY(0px) scale(1)';
+                }
+            }
+
+            cardEl.addEventListener('pointerdown', onPointerDown);
+            cardEl.addEventListener('touchstart', onPointerDown, { passive: true });
+        }
+
+        // Perform Check In
+        async function performCheckIn(student) {
+            try {
+                const nowStr = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', student.id);
+                
+                await updateDoc(docRef, {
+                    checkedIn: true,
+                    checkInTime: nowStr,
+                    timestamp: Date.now()
+                });
+
+                playHappyTone();
+                speakGreeting(student.name);
+                triggerConfetti();
+                showToast(`🎉 歡迎 ${student.className} ${student.name} 完成報到！`, 'success');
+
+            } catch (err) {
+                console.error("Check-in error:", err);
+                showToast("報到失敗，請重試", "error");
+                renderEntranceCards();
+            }
+        }
+
+        window.undoCheckIn = async function(studentId) {
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId);
+                await updateDoc(docRef, {
+                    checkedIn: false,
+                    checkInTime: null
+                });
+                showToast("已重置該生報到狀態", "info");
+            } catch (err) {
+                console.error("Undo error:", err);
+            }
+        };
+
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 70,
+                    spread: 60,
+                    origin: { y: 0.4 }
+                });
+            }
+        }
+
+        // Teacher Dashboard View
+        function renderTeacherClassSelect() {
+            const select = document.getElementById('teacher-class-select');
+            if (!select) return;
+            const classes = ['1年1班', '1年2班', '1年3班', '1年4班', '1年5班', '1年6班', '1年7班', '1年8班'];
+            select.innerHTML = classes.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+
+        window.renderTeacherDashboard = function() {
+            const select = document.getElementById('teacher-class-select');
+            const targetClass = select ? select.value : '1年1班';
+
+            const classStudents = studentsData.filter(s => s.className === targetClass);
+            const arrived = classStudents.filter(s => s.checkedIn);
+            const pending = classStudents.filter(s => !s.checkedIn);
+
+            const total = classStudents.length;
+            const arrivedCount = arrived.length;
+            const pendingCount = pending.length;
+            const ratio = total > 0 ? Math.round((arrivedCount / total) * 100) : 0;
+
+            document.getElementById('dash-total-count').innerHTML = `${total} <span class="text-sm font-normal">人</span>`;
+            document.getElementById('dash-checked-count').innerHTML = `${arrivedCount} <span class="text-sm font-normal">人</span>`;
+            document.getElementById('dash-pending-count').innerHTML = `${pendingCount} <span class="text-sm font-normal">人</span>`;
+            document.getElementById('dash-arrived-ratio').textContent = `${ratio}% 到齊`;
+
+            const arrivedListEl = document.getElementById('dash-arrived-list');
+            if (arrivedListEl) {
+                if (arrived.length === 0) {
+                    arrivedListEl.innerHTML = `<p class="col-span-full text-xs text-slate-400 p-4 text-center">尚未有學生在門口報到</p>`;
+                } else {
+                    arrivedListEl.innerHTML = arrived.map(s => `
+                        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex flex-col justify-between shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">${s.seatNumber}號</span>
+                                <span class="text-[10px] text-emerald-600 font-semibold">${s.checkInTime || ''}</span>
+                            </div>
+                            <div class="text-lg font-black text-slate-800 mt-1">${s.name}</div>
+                            <div class="text-[10px] text-emerald-600 font-bold mt-1 flex items-center gap-1">
+                                <i class="fa-solid fa-check-double"></i> 已進入教室
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+
+            const pendingListEl = document.getElementById('dash-pending-list');
+            if (pendingListEl) {
+                if (pending.length === 0) {
+                    pendingListEl.innerHTML = `<p class="col-span-full text-xs text-emerald-600 font-bold p-4 text-center">全班全數到齊！恭喜導師！</p>`;
+                } else {
+                    pendingListEl.innerHTML = pending.map(s => `
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between opacity-80">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-md">${s.seatNumber}號</span>
+                                <span class="text-[10px] text-amber-600 font-bold">未到校</span>
+                            </div>
+                            <div class="text-lg font-bold text-slate-700 mt-1">${s.name}</div>
+                            <div class="text-[10px] text-slate-400 mt-1">等待迎新報到</div>
+                        </div>
+                    `).join('');
+                }
+            }
+        };
+
+        // Navigation Switcher
+        window.switchView = function(viewName) {
+            document.getElementById('view-entrance').classList.add('hidden');
+            document.getElementById('view-teacher').classList.add('hidden');
+            document.getElementById('view-admin').classList.add('hidden');
+
+            document.getElementById('nav-entrance-btn').className = "px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:text-slate-900 transition-all flex items-center gap-2";
+            document.getElementById('nav-teacher-btn').className = "px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:text-slate-900 transition-all flex items-center gap-2";
+            document.getElementById('nav-admin-btn').className = "px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:text-slate-900 transition-all flex items-center gap-2";
+
+            if (viewName === 'entrance') {
+                document.getElementById('view-entrance').classList.remove('hidden');
+                document.getElementById('nav-entrance-btn').className = "px-4 py-2 rounded-lg text-sm font-bold bg-white text-amber-600 shadow-sm flex items-center gap-2";
+            } else if (viewName === 'teacher') {
+                document.getElementById('view-teacher').classList.remove('hidden');
+                document.getElementById('nav-teacher-btn').className = "px-4 py-2 rounded-lg text-sm font-bold bg-white text-sky-600 shadow-sm flex items-center gap-2";
+                renderTeacherDashboard();
+            } else if (viewName === 'admin') {
+                document.getElementById('view-admin').classList.remove('hidden');
+                document.getElementById('nav-admin-btn').className = "px-4 py-2 rounded-lg text-sm font-bold bg-white text-amber-600 shadow-sm flex items-center gap-2";
+            }
+        };
+
+        window.toggleAudioFeedback = function() {
+            audioEnabled = !audioEnabled;
+            const btn = document.getElementById('audio-toggle-btn');
+            if (audioEnabled) {
+                btn.innerHTML = `<i class="fa-solid fa-volume-high text-emerald-600" id="audio-icon"></i> 語音: 開`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-volume-xmark text-slate-400" id="audio-icon"></i> 語音: 關`;
+            }
+        };
+
+        // ADMIN: Generate Sample Data for 8 Classes
+        window.generateSampleData = async function(silent = false) {
+            try {
+                showToast("正在一鍵生成 8個班級 測試名單...", "info");
+
+                const surnames = ['陳', '林', '黃', '張', '李', '王', '吳', '劉', '蔡', '楊', '許', '鄭', '謝', '郭', '洪'];
+                const char1 = ['小', '宇', '品', '冠', '子', '柏', '家', '奕', '彥', '詠', '雅', '心', '沛', '羽', '芷'];
+                const char2 = ['明', '軒', '睿', '廷', '豪', '翔', '霖', '晴', '涵', '希', '瑄', '婷', '茹', '安', '恩'];
+
+                const batch = writeBatch(db);
+                const classes = ['1年1班', '1年2班', '1年3班', '1年4班', '1年5班', '1年6班', '1年7班', '1年8班'];
+
+                let totalCount = 0;
+                classes.forEach(cls => {
+                    for (let seat = 1; seat <= 20; seat++) {
+                        const randomName = surnames[Math.floor(Math.random() * surnames.length)] +
+                                           char1[Math.floor(Math.random() * char1.length)] +
+                                           char2[Math.floor(Math.random() * char2.length)];
+                        
+                        const docId = `student_${cls}_${seat}`;
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', docId);
+
+                        batch.set(docRef, {
+                            name: randomName,
+                            className: cls,
+                            seatNumber: seat,
+                            checkedIn: false,
+                            checkInTime: null
+                        });
+                        totalCount++;
+                    }
+                });
+
+                await batch.commit();
+                if (!silent) showToast(`成功生成 ${totalCount} 位新生測試名單！`, "success");
+            } catch (err) {
+                console.error("Generate data error:", err);
+                showToast("生成資料時發生錯誤", "error");
+            }
+        };
+
+        // ADMIN: Reset check-in state
+        window.resetCheckInStatus = async function() {
+            try {
+                showToast("正在重置全校報到狀態...", "info");
+                const snapshot = await getDocs(studentsCollectionRef);
+                const batch = writeBatch(db);
+
+                snapshot.forEach(docSnap => {
+                    batch.update(docSnap.ref, {
+                        checkedIn: false,
+                        checkInTime: null
+                    });
+                });
+
+                await batch.commit();
+                showToast("全校報到狀態已重置為「尚未報到」！", "success");
+            } catch (err) {
+                console.error("Reset error:", err);
+                showToast("重置失敗", "error");
+            }
+        };
+
+        // ADMIN: Clear all data
+        window.clearAllData = async function() {
+            try {
+                showToast("正在清空名單...", "info");
+                const snapshot = await getDocs(studentsCollectionRef);
+                const batch = writeBatch(db);
+
+                snapshot.forEach(docSnap => {
+                    batch.delete(docSnap.ref);
+                });
+
+                await batch.commit();
+                showToast("名單已清空", "success");
+            } catch (err) {
+                console.error("Clear error:", err);
+            }
+        };
+
+        // ADMIN: Add single student
+        window.handleAddStudent = async function(e) {
+            e.preventDefault();
+            const cls = document.getElementById('add-class-select').value;
+            const seat = parseInt(document.getElementById('add-seat-input').value, 10);
+            const name = document.getElementById('add-name-input').value.trim();
+
+            if (!name) return;
+
+            try {
+                const docId = `student_${cls}_${seat}_${Date.now()}`;
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', docId);
+
+                await setDoc(docRef, {
+                    name: name,
+                    className: cls,
+                    seatNumber: seat,
+                    checkedIn: false,
+                    checkInTime: null
+                });
+
+                document.getElementById('add-name-input').value = '';
+                showToast(`新增學生：${cls} ${seat}號 ${name} 成功！`, "success");
+            } catch (err) {
+                console.error("Add student error:", err);
+                showToast("新增失敗", "error");
+            }
+        };
+
+        // ADMIN: Batch Import Students Function
+        window.handleBatchImport = async function() {
+            const targetClass = document.getElementById('batch-class-select').value;
+            const rawText = document.getElementById('batch-input-text').value.trim();
+            const clearExisting = document.getElementById('batch-clear-checkbox').checked;
+
+            if (!rawText) {
+                showToast("請先在下方方塊輸入或貼上學生名單", "error");
+                return;
+            }
+
+            const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length === 0) {
+                showToast("未偵測到有效的姓名資料", "error");
+                return;
+            }
+
+            const parsedStudents = [];
+            let autoSeatCounter = 1;
+
+            for (const line of lines) {
+                const match = line.match(/^(\d+)[\s,，.、\t]+(.+)$/);
+                if (match) {
+                    const seat = parseInt(match[1], 10);
+                    const name = match[2].trim();
+                    if (name) {
+                        parsedStudents.push({ seat, name });
+                        autoSeatCounter = Math.max(autoSeatCounter, seat + 1);
+                    }
+                } else {
+                    parsedStudents.push({ seat: autoSeatCounter++, name: line });
+                }
+            }
+
+            if (parsedStudents.length === 0) {
+                showToast("無法解析輸入的資料，請檢查格式", "error");
+                return;
+            }
+
+            try {
+                showToast(`正在匯入 ${parsedStudents.length} 筆資料至 ${targetClass}...`, "info");
+                const batch = writeBatch(db);
+
+                if (clearExisting) {
+                    const existingInClass = studentsData.filter(s => s.className === targetClass);
+                    existingInClass.forEach(s => {
+                        batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'students', s.id));
+                    });
+                }
+
+                parsedStudents.forEach(s => {
+                    const docId = `student_${targetClass}_${s.seat}`;
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', docId);
+
+                    batch.set(docRef, {
+                        name: s.name,
+                        className: targetClass,
+                        seatNumber: s.seat,
+                        checkedIn: false,
+                        checkInTime: null
+                    }, { merge: true });
+                });
+
+                await batch.commit();
+
+                document.getElementById('batch-input-text').value = '';
+                showToast(`🎉 成功批次匯入 ${parsedStudents.length} 位學生至 ${targetClass}！`, "success");
+
+            } catch (err) {
+                console.error("Batch import error:", err);
+                showToast("批次匯入失敗，請稍後重試", "error");
+            }
+        };
+
+        // Toast Helper
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-emerald-600 text-white' : type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-800 text-white';
+
+            toast.className = `${bgClass} px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold shadow-lg transition-all duration-300 transform translate-y-2 opacity-0 flex items-center gap-2 pointer-events-auto`;
+            toast.innerHTML = msg;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Initialize Application
+        window.addEventListener('DOMContentLoaded', () => {
+            initAuth();
+        });
+    </script>
+</body>
+</html>
